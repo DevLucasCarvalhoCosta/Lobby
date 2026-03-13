@@ -1,0 +1,26 @@
+{
+  "name": "dota-league",
+  "version": "1.0.0",
+  "description": "Dota 2 Friend League Platform - Track custom lobby matches, MMR, and statistics",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm run --parallel dev",
+    "dev:api": "pnpm --filter @dota-league/api dev",
+    "dev:web": "pnpm --filter @dota-league/web dev",
+    "build": "pnpm run --parallel build",
+    "build:api": "pnpm --filter @dota-league/api build",
+    "build:web": "pnpm --filter @dota-league/web build",
+    "db:generate": "pnpm --filter @dota-league/api prisma:generate",
+    "db:push": "pnpm --filter @dota-league/api prisma:push",
+    "db:studio": "pnpm --filter @dota-league/api prisma:studio",
+    "lint": "pnpm run --parallel lint",
+    "test": "pnpm run --parallel test"
+  },
+  "keywords": ["dota2", "league", "mmr", "statistics", "esports"],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}

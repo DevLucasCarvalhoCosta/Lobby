@@ -1,0 +1,199 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// PLAYER MODEL
+// ============================================
+model Player {
+  id            String   @id @default(cuid())
+  steamId       String   @unique  // Steam64 ID
+  accountId     Int      @unique  // Steam32 account ID (used by Dota 2 API)
+  
+  // Profile info (synced from Steam)
+  personaName   String
+  avatar        String
+  avatarFull    String
+  profileUrl    String
+  
+  // Glicko-2 Rating
+  rating          Float    @default(1500)
+  ratingDeviation Float    @default(350)
+  volatility      Float    @default(0.06)
+  
+  // League stats
+  wins        Int      @default(0)
+  losses      Int      @default(0)
+  winStreak   Int      @default(0)
+  lossStreak  Int      @default(0)
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  lastMatchAt DateTime?
+  
+  // Relations
+  matchPlayers   MatchPlayer[]
+  ratingHistory  RatingHistory[]
+  reportedMatches LeagueMatch[] @relation("ReportedBy")
+  
+  @@index([rating(sort: Desc)])
+  @@index([accountId])
+}
+
+// ============================================
+// LEAGUE MATCH MODEL
+// ============================================
+model LeagueMatch {
+  id        String   @id @default(cuid())
+  matchId   BigInt   @unique  // Dota 2 match ID
+  
+  // Match info
+  startTime     DateTime
+  duration      Int           // seconds
+  radiantWin    Boolean
+  radiantScore  Int
+  direScore     Int
+  gameMode      Int
+  lobbyType     Int           @default(5) // 5 = Custom
+  
+  // Detection metadata
+  detectedAt        DateTime @default(now())
+  registeredBy      String   // 'automatic' | 'manual' | 'discord'
+  reportedByPlayer  Player?  @relation("ReportedBy", fields: [reportedByPlayerId], references: [id])
+  reportedByPlayerId String?
+  
+  // Processing status
+  ratingProcessed Boolean @default(false)
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  
+  // Relations
+  players MatchPlayer[]
+  
+  @@index([startTime(sort: Desc)])
+  @@index([ratingProcessed])
+}
+
+// ============================================
+// MATCH PLAYER MODEL
+// ============================================
+model MatchPlayer {
+  id        String @id @default(cuid())
+  
+  // Relations
+  match     LeagueMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  matchId   String
+  player    Player      @relation(fields: [playerId], references: [id])
+  playerId  String
+  
+  // Dota 2 data
+  accountId   Int
+  heroId      Int
+  playerSlot  Int      // 0-127 (0-4 Radiant, 128-132 Dire)
+  isRadiant   Boolean
+  
+  // Performance stats
+  kills       Int
+  deaths      Int
+  assists     Int
+  gpm         Int      // Gold per minute
+  xpm         Int      // XP per minute
+  lastHits    Int
+  denies      Int
+  heroDamage  Int      @default(0)
+  towerDamage Int      @default(0)
+  heroHealing Int      @default(0)
+  gold        Int      @default(0)
+  level       Int      @default(1)
+  
+  // Items
+  item0       Int      @default(0)
+  item1       Int      @default(0)
+  item2       Int      @default(0)
+  item3       Int      @default(0)
+  item4       Int      @default(0)
+  item5       Int      @default(0)
+  backpack0   Int      @default(0)
+  backpack1   Int      @default(0)
+  backpack2   Int      @default(0)
+  
+  // Rating snapshot
+  ratingBefore Float
+  ratingAfter  Float
+  ratingChange Float
+  
+  @@unique([matchId, playerId])
+  @@index([playerId])
+  @@index([heroId])
+}
+
+// ============================================
+// RATING HISTORY MODEL
+// ============================================
+model RatingHistory {
+  id        String   @id @default(cuid())
+  
+  player    Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  playerId  String
+  
+  matchId   String   // Reference to league match
+  
+  ratingBefore Float
+  ratingAfter  Float
+  rdBefore     Float
+  rdAfter      Float
+  
+  createdAt DateTime @default(now())
+  
+  @@index([playerId, createdAt(sort: Desc)])
+}
+
+// ============================================
+// PENDING MATCH MODEL (for detection queue)
+// ============================================
+model PendingMatch {
+  id        String   @id @default(cuid())
+  matchId   BigInt   @unique  // Dota 2 match ID
+  
+  reportedBy    Int      // accountId of reporter
+  reportedAt    DateTime @default(now())
+  
+  // Detection attempts
+  attempts      Int      @default(0)
+  lastAttempt   DateTime?
+  
+  status        String   @default("pending") // 'pending' | 'processing' | 'completed' | 'failed'
+  errorMessage  String?
+  
+  @@index([status])
+}
+
+// ============================================
+// INVITE CODE MODEL
+// ============================================
+model InviteCode {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  
+  createdBy   String   // Player ID who created
+  usedBy      String?  // Player ID who used
+  usedAt      DateTime?
+  
+  expiresAt   DateTime?
+  maxUses     Int      @default(1)
+  useCount    Int      @default(0)
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([code])
+}
