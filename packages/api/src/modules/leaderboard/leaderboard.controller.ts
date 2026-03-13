@@ -12,10 +12,12 @@ export class LeaderboardController {
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Max players to return' })
   @ApiQuery({ name: 'minMatches', required: false, type: Number, description: 'Minimum matches to be ranked' })
   async getLeaderboard(
-    @Query('limit') limit: number = 50,
-    @Query('minMatches') minMatches: number = 0,
+    @Query('limit') limit?: string,
+    @Query('minMatches') minMatches?: string,
   ) {
-    return this.leaderboardService.getLeaderboard(limit, minMatches);
+    const parsedLimit = limit ? parseInt(limit, 10) : 50;
+    const parsedMinMatches = minMatches ? parseInt(minMatches, 10) : 0;
+    return this.leaderboardService.getLeaderboard(parsedLimit, parsedMinMatches);
   }
 
   @Get('stats')
@@ -33,7 +35,7 @@ export class LeaderboardController {
   @Get('recent-activity')
   @ApiOperation({ summary: 'Get recent league activity' })
   @ApiQuery({ name: 'limit', required: false, type: Number })
-  async getRecentActivity(@Query('limit') limit: number = 10) {
-    return this.leaderboardService.getRecentActivity(limit);
+  async getRecentActivity(@Query('limit') limit?: string) {
+    return this.leaderboardService.getRecentActivity(limit ? parseInt(limit, 10) : 10);
   }
 }

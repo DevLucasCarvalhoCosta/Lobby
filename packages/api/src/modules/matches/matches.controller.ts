@@ -26,17 +26,20 @@ export class MatchesController {
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'skip', required: false, type: Number })
   async getAllMatches(
-    @Query('limit') limit: number = 20,
-    @Query('skip') skip: number = 0,
+    @Query('limit') limit?: string,
+    @Query('skip') skip?: string,
   ) {
-    return this.matchesService.getAllMatches(limit, skip);
+    return this.matchesService.getAllMatches(
+      limit ? parseInt(limit, 10) : 20,
+      skip ? parseInt(skip, 10) : 0
+    );
   }
 
   @Get('recent')
   @ApiOperation({ summary: 'Get recent matches' })
   @ApiQuery({ name: 'limit', required: false, type: Number })
-  async getRecentMatches(@Query('limit') limit: number = 10) {
-    return this.matchesService.getRecentMatches(limit);
+  async getRecentMatches(@Query('limit') limit?: string) {
+    return this.matchesService.getRecentMatches(limit ? parseInt(limit, 10) : 10);
   }
 
   @Get('detect')
@@ -44,10 +47,13 @@ export class MatchesController {
   @ApiQuery({ name: 'accountId', required: true, type: Number })
   @ApiQuery({ name: 'hoursBack', required: false, type: Number })
   async detectMatchesForUser(
-    @Query('accountId') accountId: number,
-    @Query('hoursBack') hoursBack: number = 2,
+    @Query('accountId') accountId: string,
+    @Query('hoursBack') hoursBack?: string,
   ) {
-    const candidates = await this.matchesService.findPotentialMatches(accountId, hoursBack);
+    const candidates = await this.matchesService.findPotentialMatches(
+      parseInt(accountId, 10),
+      hoursBack ? parseInt(hoursBack, 10) : 2
+    );
     return { candidates };
   }
 

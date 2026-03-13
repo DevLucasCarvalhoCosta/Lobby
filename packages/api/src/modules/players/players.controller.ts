@@ -21,10 +21,10 @@ export class PlayersController {
   @ApiQuery({ name: 'sortBy', required: false, enum: ['rating', 'wins', 'winRate', 'recentActivity'] })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   async getAllPlayers(
-    @Query('sortBy') sortBy: string = 'rating',
-    @Query('limit') limit: number = 100,
+    @Query('sortBy') sortBy?: string,
+    @Query('limit') limit?: string,
   ) {
-    return this.playersService.getAllPlayers(sortBy, limit);
+    return this.playersService.getAllPlayers(sortBy || 'rating', limit ? parseInt(limit, 10) : 100);
   }
 
   @Get(':idOrSteamId')
@@ -69,10 +69,10 @@ export class PlayersController {
   @ApiQuery({ name: 'offset', required: false, type: Number })
   async getPlayerMatches(
     @Param('id') id: string,
-    @Query('limit') limit: number = 20,
-    @Query('offset') offset: number = 0,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
   ) {
-    return this.playersService.getPlayerMatches(id, limit, offset);
+    return this.playersService.getPlayerMatches(id, limit ? parseInt(limit, 10) : 20, offset ? parseInt(offset, 10) : 0);
   }
 
   @Get(':id/heroes')
@@ -86,9 +86,9 @@ export class PlayersController {
   @ApiQuery({ name: 'limit', required: false, type: Number })
   async getPlayerRatingHistory(
     @Param('id') id: string,
-    @Query('limit') limit: number = 50,
+    @Query('limit') limit?: string,
   ) {
-    return this.playersService.getPlayerRatingHistory(id, limit);
+    return this.playersService.getPlayerRatingHistory(id, limit ? parseInt(limit, 10) : 50);
   }
 
   @Post('register')

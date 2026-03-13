@@ -113,8 +113,8 @@ export class PlayersService {
       ...player,
       recentMatches,
       ratingHistory: player.ratingHistory.map((rh) => ({
-        rating: rh.rating,
-        ratingDeviation: rh.ratingDeviation,
+        rating: rh.ratingAfter,
+        ratingDeviation: rh.rdAfter,
         createdAt: rh.createdAt.toISOString(),
       })),
     };

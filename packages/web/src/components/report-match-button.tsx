@@ -25,7 +25,8 @@ export function ReportMatchButton() {
     queryKey: ['match-candidates', user?.accountId],
     queryFn: async () => {
       if (!user?.accountId) return [];
-      const response = await api.get(`/matches/detect?accountId=${user.accountId}`);
+      // Search last 48 hours instead of 2 hours
+      const response = await api.get(`/matches/detect?accountId=${user.accountId}&hoursBack=48`);
       return response.data.candidates;
     },
     enabled: isOpen && !!user?.accountId,
