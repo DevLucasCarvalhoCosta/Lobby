@@ -42,6 +42,12 @@ export function Navbar() {
             >
               Players
             </Link>
+            <Link
+              href="/lobby"
+              className="text-dota-text-secondary hover:text-dota-text transition-colors"
+            >
+              Lobby
+            </Link>
 
             {/* Auth */}
             {isLoading ? (
@@ -116,6 +122,13 @@ export function Navbar() {
               onClick={() => setMobileMenuOpen(false)}
             >
               Players
+            </Link>
+            <Link
+              href="/lobby"
+              className="block text-dota-text-secondary hover:text-dota-text"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              Lobby
             </Link>
             {user ? (
               <div className="flex items-center justify-between pt-4 border-t border-dota-border">

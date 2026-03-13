@@ -41,9 +41,11 @@ model Player {
   lastMatchAt DateTime?
   
   // Relations
-  matchPlayers   MatchPlayer[]
-  ratingHistory  RatingHistory[]
+  matchPlayers    MatchPlayer[]
+  ratingHistory   RatingHistory[]
   reportedMatches LeagueMatch[] @relation("ReportedBy")
+  createdLobbies  Lobby[]       @relation("LobbyCreator")
+  lobbyPlayers    LobbyPlayer[]
   
   @@index([rating(sort: Desc)])
   @@index([accountId])
@@ -79,6 +81,7 @@ model LeagueMatch {
   
   // Relations
   players MatchPlayer[]
+  lobby   Lobby?
   
   @@index([startTime(sort: Desc)])
   @@index([ratingProcessed])
@@ -196,4 +199,93 @@ model InviteCode {
   createdAt   DateTime @default(now())
   
   @@index([code])
+}
+
+// ============================================
+// LOBBY MODEL (Dota 2 Custom Lobbies)
+// ============================================
+model Lobby {
+  id            String       @id @default(cuid())
+  
+  // Dota 2 Lobby Info
+  dotaLobbyId   BigInt?      @unique  // Dota 2 lobby ID from GC
+  name          String                 // Lobby name displayed in-game
+  password      String                 // Password for joining
+  
+  // Configuration
+  serverRegion  Int          @default(10) // 10 = Brazil
+  gameMode      Int          @default(1)  // 1 = All Pick, 2 = Captain's Mode
+  
+  // Status
+  status        LobbyStatus  @default(CREATED)
+  
+  // Tracking
+  matchId       BigInt?      @unique  // Dota 2 match ID after game starts
+  
+  // Creator
+  createdBy     Player       @relation("LobbyCreator", fields: [createdById], references: [id])
+  createdById   String
+  
+  // Timestamps
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  launchedAt    DateTime?    // When game started
+  finishedAt    DateTime?    // When game ended
+  cancelledAt   DateTime?    // If cancelled
+  
+  // Relations
+  players       LobbyPlayer[]
+  leagueMatch   LeagueMatch? @relation(fields: [matchId], references: [matchId])
+  
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+}
+
+enum LobbyStatus {
+  CREATED           // Lobby created, waiting for players to join
+  INVITES_SENT      // Invites sent to all players
+  PLAYERS_JOINING   // Players are joining the lobby
+  READY             // All players joined, ready to start
+  LAUNCHING         // Game is launching
+  IN_GAME           // Game in progress
+  FINISHED          // Game completed
+  CANCELLED         // Lobby was cancelled
+  FAILED            // Lobby creation failed
+}
+
+// ============================================
+// LOBBY PLAYER MODEL
+// ============================================
+model LobbyPlayer {
+  id          String           @id @default(cuid())
+  
+  // Relations
+  lobby       Lobby            @relation(fields: [lobbyId], references: [id], onDelete: Cascade)
+  lobbyId     String
+  player      Player           @relation(fields: [playerId], references: [id])
+  playerId    String
+  
+  // Team assignment
+  team        LobbyTeam        @default(UNASSIGNED)
+  slot        Int?             // 0-4 for each team
+  
+  // Status
+  isHost      Boolean          @default(false)
+  inviteSent  Boolean          @default(false)
+  invitedAt   DateTime?
+  joined      Boolean          @default(false)
+  joinedAt    DateTime?
+  
+  // Timestamps
+  createdAt   DateTime         @default(now())
+  
+  @@unique([lobbyId, playerId])
+  @@index([playerId])
+}
+
+enum LobbyTeam {
+  UNASSIGNED
+  RADIANT
+  DIRE
+  SPECTATOR
 }

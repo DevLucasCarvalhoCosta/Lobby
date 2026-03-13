@@ -7,6 +7,7 @@ import { PlayersModule } from './modules/players/players.module';
 import { MatchesModule } from './modules/matches/matches.module';
 import { LeaderboardModule } from './modules/leaderboard/leaderboard.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { LobbyModule } from './modules/lobby/lobby.module';
 import { OpenDotaModule } from './services/opendota/opendota.module';
 import { RatingModule } from './services/rating/rating.module';
 
@@ -33,6 +34,7 @@ import { RatingModule } from './services/rating/rating.module';
     MatchesModule,
     LeaderboardModule,
     AuthModule,
+    LobbyModule,
   ],
 })
 export class AppModule {}

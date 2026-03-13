@@ -1,0 +1,235 @@
+syntax = "proto3";
+
+package lobby;
+
+option go_package = "github.com/dota-league/dota-gc/proto";
+
+// LobbyService provides Dota 2 lobby management functionality
+service LobbyService {
+  // CreateLobby creates a new Dota 2 practice lobby
+  rpc CreateLobby(CreateLobbyRequest) returns (CreateLobbyResponse);
+  
+  // InvitePlayers invites players to the current lobby
+  rpc InvitePlayers(InvitePlayersRequest) returns (InvitePlayersResponse);
+  
+  // ConfigureLobby updates lobby settings
+  rpc ConfigureLobby(ConfigureLobbyRequest) returns (ConfigureLobbyResponse);
+  
+  // LaunchLobby starts the game
+  rpc LaunchLobby(LaunchLobbyRequest) returns (LaunchLobbyResponse);
+  
+  // LeaveLobby leaves the current lobby
+  rpc LeaveLobby(LeaveLobbyRequest) returns (LeaveLobbyResponse);
+  
+  // DestroyLobby destroys the current lobby
+  rpc DestroyLobby(DestroyLobbyRequest) returns (DestroyLobbyResponse);
+  
+  // GetLobbyState returns the current lobby state
+  rpc GetLobbyState(GetLobbyStateRequest) returns (LobbyState);
+  
+  // ShuffleTeams performs balanced shuffle
+  rpc ShuffleTeams(ShuffleTeamsRequest) returns (ShuffleTeamsResponse);
+  
+  // FlipTeams swaps radiant and dire
+  rpc FlipTeams(FlipTeamsRequest) returns (FlipTeamsResponse);
+  
+  // KickPlayer kicks a player from the lobby
+  rpc KickPlayer(KickPlayerRequest) returns (KickPlayerResponse);
+  
+  // StreamLobbyUpdates streams real-time lobby updates
+  rpc StreamLobbyUpdates(StreamLobbyUpdatesRequest) returns (stream LobbyUpdate);
+  
+  // GetBotStatus returns the bot's connection status
+  rpc GetBotStatus(GetBotStatusRequest) returns (BotStatus);
+}
+
+// CreateLobbyRequest contains parameters for creating a lobby
+message CreateLobbyRequest {
+  string name = 1;
+  string password = 2;
+  uint32 server_region = 3;  // See ServerRegion enum
+  uint32 game_mode = 4;      // See GameMode enum
+  bool allow_cheats = 5;
+  bool allow_spectators = 6;
+  repeated uint64 invite_steam_ids = 7;  // Players to invite immediately
+}
+
+message CreateLobbyResponse {
+  bool success = 1;
+  string error = 2;
+  uint64 lobby_id = 3;
+  string password = 4;
+}
+
+message InvitePlayersRequest {
+  repeated uint64 steam_ids = 1;
+}
+
+message InvitePlayersResponse {
+  bool success = 1;
+  string error = 2;
+  map<uint64, bool> invite_results = 3;  // steam_id -> success
+}
+
+message ConfigureLobbyRequest {
+  string name = 1;
+  string password = 2;
+  uint32 server_region = 3;
+  uint32 game_mode = 4;
+  bool allow_cheats = 5;
+  bool allow_spectators = 6;
+}
+
+message ConfigureLobbyResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message LaunchLobbyRequest {}
+
+message LaunchLobbyResponse {
+  bool success = 1;
+  string error = 2;
+  uint64 match_id = 3;  // Match ID once game starts
+}
+
+message LeaveLobbyRequest {}
+
+message LeaveLobbyResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message DestroyLobbyRequest {}
+
+message DestroyLobbyResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message GetLobbyStateRequest {}
+
+message LobbyState {
+  bool in_lobby = 1;
+  uint64 lobby_id = 2;
+  string name = 3;
+  string password = 4;
+  LobbyStatus status = 5;
+  uint32 server_region = 6;
+  uint32 game_mode = 7;
+  uint64 match_id = 8;
+  repeated LobbyMember members = 9;
+  int32 radiant_count = 10;
+  int32 dire_count = 11;
+}
+
+enum LobbyStatus {
+  LOBBY_STATUS_UNKNOWN = 0;
+  LOBBY_STATUS_CREATED = 1;
+  LOBBY_STATUS_WAITING = 2;
+  LOBBY_STATUS_READY = 3;
+  LOBBY_STATUS_IN_GAME = 4;
+  LOBBY_STATUS_POST_GAME = 5;
+}
+
+message LobbyMember {
+  uint64 steam_id = 1;
+  uint32 account_id = 2;
+  string name = 3;
+  LobbyTeam team = 4;
+  uint32 slot = 5;
+  bool is_ready = 6;
+  bool is_host = 7;
+}
+
+enum LobbyTeam {
+  TEAM_UNASSIGNED = 0;
+  TEAM_RADIANT = 1;
+  TEAM_DIRE = 2;
+  TEAM_SPECTATOR = 3;
+  TEAM_BROADCASTER = 4;
+}
+
+message ShuffleTeamsRequest {}
+
+message ShuffleTeamsResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message FlipTeamsRequest {}
+
+message FlipTeamsResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message KickPlayerRequest {
+  uint32 account_id = 1;
+}
+
+message KickPlayerResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message StreamLobbyUpdatesRequest {}
+
+message LobbyUpdate {
+  LobbyState state = 1;
+  LobbyUpdateType update_type = 2;
+  int64 timestamp = 3;
+}
+
+enum LobbyUpdateType {
+  UPDATE_TYPE_UNKNOWN = 0;
+  UPDATE_TYPE_CREATED = 1;
+  UPDATE_TYPE_CONFIG_CHANGED = 2;
+  UPDATE_TYPE_PLAYER_JOINED = 3;
+  UPDATE_TYPE_PLAYER_LEFT = 4;
+  UPDATE_TYPE_TEAM_CHANGED = 5;
+  UPDATE_TYPE_LAUNCHED = 6;
+  UPDATE_TYPE_FINISHED = 7;
+  UPDATE_TYPE_DESTROYED = 8;
+}
+
+message GetBotStatusRequest {}
+
+message BotStatus {
+  bool connected = 1;
+  bool ready = 2;
+  string steam_username = 3;
+  uint64 steam_id = 4;
+  int64 uptime_seconds = 5;
+  bool in_lobby = 6;
+}
+
+// Server region constants
+enum ServerRegion {
+  REGION_UNSPECIFIED = 0;
+  REGION_US_WEST = 1;
+  REGION_US_EAST = 2;
+  REGION_EUROPE = 3;
+  REGION_KOREA = 4;
+  REGION_SINGAPORE = 5;
+  REGION_DUBAI = 6;
+  REGION_AUSTRALIA = 7;
+  REGION_STOCKHOLM = 8;
+  REGION_AUSTRIA = 9;
+  REGION_BRAZIL = 10;
+  REGION_SOUTH_AFRICA = 11;
+  REGION_CHILE = 14;
+  REGION_PERU = 15;
+  REGION_INDIA = 16;
+  REGION_JAPAN = 19;
+}
+
+// Game mode constants
+enum GameMode {
+  GAME_MODE_UNKNOWN = 0;
+  GAME_MODE_ALL_PICK = 1;
+  GAME_MODE_CAPTAINS_MODE = 2;
+  GAME_MODE_RANDOM_DRAFT = 3;
+  GAME_MODE_SINGLE_DRAFT = 4;
+  GAME_MODE_ALL_RANDOM = 5;
+}
