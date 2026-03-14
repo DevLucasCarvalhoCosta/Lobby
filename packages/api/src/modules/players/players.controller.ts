@@ -27,6 +27,16 @@ export class PlayersController {
     return this.playersService.getAllPlayers(sortBy || 'rating', limit ? parseInt(limit, 10) : 100);
   }
 
+  @Get('search')
+  @ApiOperation({ summary: 'Search players by name, Steam ID or account ID' })
+  @ApiQuery({ name: 'q', required: true, type: String })
+  async searchPlayers(@Query('q') query: string) {
+    if (!query || query.length < 1) {
+      return [];
+    }
+    return this.playersService.searchPlayers(query);
+  }
+
   @Get(':idOrSteamId')
   @ApiOperation({ summary: 'Get player by ID or Steam ID' })
   async getPlayer(@Param('idOrSteamId') idOrSteamId: string) {

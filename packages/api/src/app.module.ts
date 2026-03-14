@@ -16,7 +16,7 @@ import { RatingModule } from './services/rating/rating.module';
     // Configuration
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: '../../.env',
+      envFilePath: ['.env', '../../.env'],
     }),
     
     // Scheduling for cron jobs

@@ -10,7 +10,7 @@ import Link from 'next/link';
 interface PlayerOption {
   steamId: string;
   personaName: string;
-  avatarUrl?: string;
+  avatar?: string;
 }
 
 export default function CreateLobbyPage() {
@@ -29,7 +29,10 @@ export default function CreateLobbyPage() {
     queryKey: ['player-search', playerSearch],
     queryFn: async () => {
       if (!playerSearch || playerSearch.length < 2) return [];
-      const res = await fetch(`/api/players/search?q=${encodeURIComponent(playerSearch)}`);
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const res = await fetch(`${apiUrl}/players/search?q=${encodeURIComponent(playerSearch)}`, {
+        credentials: 'include',
+      });
       return res.json() as Promise<PlayerOption[]>;
     },
     enabled: playerSearch.length >= 2,
@@ -56,7 +59,7 @@ export default function CreateLobbyPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    if (selectedPlayers.length < 2) return;
+    if (selectedPlayers.length < 1) return;
 
     createMutation.mutate({
       name: name.trim(),
@@ -195,8 +198,8 @@ export default function CreateLobbyPage() {
                       disabled={selectedPlayers.some(p => p.steamId === player.steamId)}
                       className="w-full px-4 py-2 text-left hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3"
                     >
-                      {player.avatarUrl && (
-                        <img src={player.avatarUrl} alt="" className="w-8 h-8 rounded" />
+                      {player.avatar && (
+                        <img src={player.avatar} alt="" className="w-8 h-8 rounded" />
                       )}
                       <div>
                         <div className="text-white">{player.personaName}</div>
@@ -233,8 +236,8 @@ export default function CreateLobbyPage() {
             </div>
 
             {selectedPlayers.length > 0 && selectedPlayers.length < 10 && (
-              <p className="text-yellow-500 text-sm mt-2">
-                Need {10 - selectedPlayers.length} more player(s) for a full match
+              <p className="text-gray-400 text-sm mt-2">
+                {`${selectedPlayers.length} players selected (10 for full match)`}
               </p>
             )}
           </div>
@@ -246,6 +249,9 @@ export default function CreateLobbyPage() {
               Players 1-5 will be assigned to <span className="text-green-500">Radiant</span>,
               players 6-10 will be assigned to <span className="text-red-500">Dire</span>.
               You can reorder players by dragging or adjust teams in the lobby page.
+            </p>
+            <p className="text-blue-400 text-xs mt-2">
+              Dev mode: Minimum 1 player to create and launch.
             </p>
           </div>
 
@@ -262,7 +268,7 @@ export default function CreateLobbyPage() {
           <div className="flex gap-4">
             <button
               type="submit"
-              disabled={!name.trim() || selectedPlayers.length < 2 || createMutation.isPending}
+              disabled={!name.trim() || selectedPlayers.length < 1 || createMutation.isPending}
               className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white py-3 rounded-lg font-medium transition-colors"
             >
               {createMutation.isPending ? 'Creating...' : 'Create Lobby'}

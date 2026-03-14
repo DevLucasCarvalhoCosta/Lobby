@@ -50,6 +50,27 @@ export class PlayersService {
     });
   }
 
+  async searchPlayers(query: string) {
+    // Search by personaName, steamId, or accountId
+    const isNumeric = /^\d+$/.test(query);
+    
+    return this.prisma.player.findMany({
+      where: {
+        OR: [
+          { personaName: { contains: query, mode: 'insensitive' } },
+          { steamId: { contains: query } },
+          ...(isNumeric ? [{ accountId: parseInt(query, 10) }] : []),
+        ],
+      },
+      take: 10,
+      select: {
+        steamId: true,
+        personaName: true,
+        avatar: true,
+      },
+    });
+  }
+
   async getPlayerById(id: string) {
     return this.getPlayerProfile({ id });
   }

@@ -5,25 +5,40 @@ import {
   Body,
   Param,
   Delete,
-  UseGuards,
   Req,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { LobbyService, LobbyResponse } from './lobby.service';
-import { LobbyStatus, LobbyTeam } from '@prisma/client';
+import { IsString, IsOptional, IsNumber, IsArray, ArrayMinSize } from 'class-validator';
+import { Request } from 'express';
+import { LobbyService } from './lobby.service';
+import { LobbyTeam } from '@prisma/client';
 
 // DTOs
 class CreateLobbyDto {
-  name: string;
+  @IsString()
+  name!: string;
+
+  @IsOptional()
+  @IsString()
   password?: string;
+
+  @IsOptional()
+  @IsNumber()
   serverRegion?: number;
+
+  @IsOptional()
+  @IsNumber()
   gameMode?: number;
-  playerSteamIds: string[];
+
+  @IsArray()
+  @IsString({ each: true })
+  @ArrayMinSize(1)
+  playerSteamIds!: string[];
 }
 
 class WebhookDto {
-  lobbyId: string;
+  lobbyId!: string;
   dotaLobbyId?: string;
   matchId?: string;
   status?: string;
@@ -42,16 +57,16 @@ export class LobbyController {
    * Create a new lobby
    */
   @Post()
-  async createLobby(@Body() dto: CreateLobbyDto, @Req() req: any) {
+  async createLobby(@Body() dto: CreateLobbyDto, @Req() req: Request) {
     // Get player ID from session
-    const playerId = req.session?.player?.id;
-    if (!playerId) {
+    const userId = (req.session as any)?.user?.id;
+    if (!userId) {
       throw new Error('Not authenticated');
     }
 
     return this.lobbyService.createLobby({
       ...dto,
-      createdById: playerId,
+      createdById: userId,
     });
   }
 
@@ -75,12 +90,12 @@ export class LobbyController {
    * Get lobbies for current player
    */
   @Get('my/lobbies')
-  async getMyLobbies(@Req() req: any) {
-    const playerId = req.session?.player?.id;
-    if (!playerId) {
+  async getMyLobbies(@Req() req: Request) {
+    const userId = (req.session as any)?.user?.id;
+    if (!userId) {
       throw new Error('Not authenticated');
     }
-    return this.lobbyService.getPlayerLobbies(playerId);
+    return this.lobbyService.getPlayerLobbies(userId);
   }
 
   /**
@@ -125,8 +140,8 @@ export class LobbyController {
         return { connected: false, error: `HTTP ${response.status}` };
       }
       return await response.json();
-    } catch (error) {
-      return { connected: false, error: error.message };
+    } catch (error: unknown) {
+      return { connected: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
 }

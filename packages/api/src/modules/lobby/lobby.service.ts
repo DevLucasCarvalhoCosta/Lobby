@@ -310,10 +310,11 @@ export class LobbyService {
       throw new BadRequestException('Lobby is not ready to launch');
     }
 
-    // Check minimum players (5v5 = 10)
+    // Check minimum players (relaxed in development mode)
     const joinedPlayers = lobby.players.filter(p => p.joined);
-    if (joinedPlayers.length < 6) {
-      throw new BadRequestException('Need at least 6 players to launch');
+    const minPlayers = process.env.NODE_ENV === 'development' ? 1 : 6;
+    if (joinedPlayers.length < minPlayers) {
+      throw new BadRequestException(`Need at least ${minPlayers} players to launch`);
     }
 
     await this.updateLobbyStatus(id, LobbyStatus.LAUNCHING);

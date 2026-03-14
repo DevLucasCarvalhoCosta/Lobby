@@ -1,10 +1,11 @@
 module github.com/dota-league/dota-gc
 
-go 1.22
+go 1.25
 
 require (
-	github.com/paralin/go-dota2 v0.0.0-20250224234501-66ba7f74e5f9
-	github.com/paralin/go-steam v0.0.0-20240626210143-b4c1fdf4c4cb
+	github.com/paralin/go-dota2 v0.0.0-20240409231310-e8f172852608
+	github.com/paralin/go-steam v0.0.0-20231025185642-e7c8d97e052a
+	github.com/sirupsen/logrus v1.9.4
 	google.golang.org/grpc v1.62.1
 	google.golang.org/protobuf v1.33.0
 )

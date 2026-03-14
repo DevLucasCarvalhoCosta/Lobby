@@ -31,6 +31,8 @@ async function bootstrap() {
       cookie: {
         maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
         secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax', // Required for cross-site redirects (Steam OAuth)
+        httpOnly: true,
       },
     }),
   );

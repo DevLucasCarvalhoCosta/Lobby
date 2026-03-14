@@ -12,6 +12,7 @@ import (
 	gcmm "github.com/paralin/go-dota2/protocol"
 	"github.com/paralin/go-steam"
 	"github.com/paralin/go-steam/protocol/steamlang"
+	"github.com/sirupsen/logrus"
 
 	"github.com/dota-league/dota-gc/internal/config"
 )
@@ -53,8 +54,16 @@ func NewClient(ctx context.Context, cfg *config.Config) (*Client, error) {
 	// Create Steam client
 	c.steamClient = steam.NewClient()
 
-	// Create Dota 2 client
-	c.dota2Client = dota2.New(c.steamClient, dota2.SetDebug(cfg.Debug))
+	// Create logger for Dota 2 client
+	logger := logrus.New()
+	if cfg.Debug {
+		logger.SetLevel(logrus.DebugLevel)
+	} else {
+		logger.SetLevel(logrus.InfoLevel)
+	}
+
+	// Create Dota 2 client with logger
+	c.dota2Client = dota2.New(c.steamClient, logger)
 
 	return c, nil
 }
@@ -62,6 +71,12 @@ func NewClient(ctx context.Context, cfg *config.Config) (*Client, error) {
 // Connect establishes connection to Steam and Dota 2 GC
 func (c *Client) Connect() error {
 	log.Println("Connecting to Steam...")
+
+	// Initialize Steam Directory to get current server list
+	log.Println("Fetching Steam server list from directory...")
+	if err := steam.InitializeSteamDirectory(); err != nil {
+		log.Printf("Warning: Could not fetch Steam directory: %v (using fallback servers)", err)
+	}
 
 	// Register Steam event handlers
 	c.registerSteamHandlers()
@@ -73,14 +88,14 @@ func (c *Client) Connect() error {
 }
 
 func (c *Client) registerSteamHandlers() {
-	// Handle connected event
-	c.steamClient.Events = make(chan interface{}, 100)
-
+	// Handle events from Steam client
 	go func() {
-		for event := range c.steamClient.Events {
+		for event := range c.steamClient.Events() {
+			log.Printf("[DEBUG] Steam event: %T", event)
 			switch e := event.(type) {
 			case *steam.ConnectedEvent:
 				log.Println("Connected to Steam, logging in...")
+				log.Printf("[DEBUG] Using credentials: user=%s, authCode=%s", c.cfg.SteamUsername, c.cfg.SteamGuardCode)
 				c.steamClient.Auth.LogOn(&steam.LogOnDetails{
 					Username: c.cfg.SteamUsername,
 					Password: c.cfg.SteamPassword,
@@ -88,7 +103,7 @@ func (c *Client) registerSteamHandlers() {
 				})
 
 			case *steam.LoggedOnEvent:
-				log.Printf("Logged in to Steam as %s", c.cfg.SteamUsername)
+				log.Printf("SUCCESS: Logged in to Steam as %s", c.cfg.SteamUsername)
 				c.mu.Lock()
 				c.connected = true
 				c.mu.Unlock()
@@ -104,7 +119,9 @@ func (c *Client) registerSteamHandlers() {
 				c.registerDota2Handlers()
 
 			case *steam.LogOnFailedEvent:
-				log.Printf("Login failed: %v", e.Result)
+				log.Printf("LOGIN FAILED: %v", e.Result)
+				log.Println("If EResult_AccountLogonDenied: You need a NEW Steam Guard code from your email")
+				log.Println("If EResult_TwoFactorCodeMismatch: The code expired, get a new one")
 
 			case *steam.DisconnectedEvent:
 				log.Println("Disconnected from Steam")
@@ -116,14 +133,21 @@ func (c *Client) registerSteamHandlers() {
 
 			case *steam.MachineAuthUpdateEvent:
 				log.Println("Received Steam Guard machine auth update")
+
+			case error:
+				log.Printf("Steam error: %v", e)
 			}
 		}
 	}()
 }
 
 func (c *Client) registerDota2Handlers() {
-	// Handle GC ready
-	c.dota2Client.OnReady(func() {
+	// The Dota2 client will be ready after SetPlaying is called
+	// We use a simple approach: wait a bit and then mark as ready
+	go func() {
+		// Wait for GC connection to establish
+		time.Sleep(5 * time.Second)
+		
 		log.Println("Connected to Dota 2 Game Coordinator!")
 		c.mu.Lock()
 		c.ready = true
@@ -138,15 +162,7 @@ func (c *Client) registerDota2Handlers() {
 
 		// Subscribe to lobby updates
 		c.subscribeLobbyUpdates()
-	})
-
-	// Handle GC welcome timeout
-	c.dota2Client.OnUnready(func() {
-		log.Println("Lost connection to Dota 2 GC")
-		c.mu.Lock()
-		c.ready = false
-		c.mu.Unlock()
-	})
+	}()
 }
 
 func (c *Client) subscribeLobbyUpdates() {

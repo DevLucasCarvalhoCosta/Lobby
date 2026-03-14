@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/dota-league/dota-gc/internal/bot"
@@ -39,6 +40,12 @@ func (s *Server) Start() error {
 	// Status endpoints
 	mux.HandleFunc("/status", s.handleStatus)
 	mux.HandleFunc("/lobby", s.handleLobby)
+
+	// Lobby management endpoints
+	mux.HandleFunc("/lobby/create", s.handleCreateLobby)
+	mux.HandleFunc("/lobby/invite", s.handleInvitePlayers)
+	mux.HandleFunc("/lobby/launch", s.handleLaunchLobby)
+	mux.HandleFunc("/lobby/destroy", s.handleDestroyLobby)
 
 	s.httpServer = &http.Server{
 		Addr:    fmt.Sprintf(":%d", s.port),
@@ -131,7 +138,6 @@ func (s *Server) handleLobby(w http.ResponseWriter, r *http.Request) {
 		members = append(members, map[string]interface{}{
 			"steam_id":   m.GetId(),
 			"account_id": uint32(m.GetId() & 0xFFFFFFFF),
-			"name":       m.GetName(),
 			"team":       m.GetTeam().String(),
 			"slot":       m.GetSlot(),
 		})
@@ -152,4 +158,194 @@ func (s *Server) handleLobby(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(state)
+}
+
+// CreateLobbyRequest represents the JSON body for creating a lobby
+type CreateLobbyRequest struct {
+	Name            string   `json:"name"`
+	Password        string   `json:"password"`
+	ServerRegion    uint32   `json:"serverRegion"`
+	GameMode        uint32   `json:"gameMode"`
+	AllowCheats     bool     `json:"allowCheats"`
+	AllowSpectators bool     `json:"allowSpectators"`
+	InviteSteamIds  []uint64 `json:"inviteSteamIds"`
+	PlayerSteamIds  []string `json:"playerSteamIds"`
+}
+
+// handleCreateLobby creates a new Dota 2 lobby
+func (s *Server) handleCreateLobby(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Method not allowed"})
+		return
+	}
+
+	var req CreateLobbyRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid JSON: " + err.Error()})
+		return
+	}
+
+	// Use default values if not provided
+	serverRegion := req.ServerRegion
+	if serverRegion == 0 {
+		serverRegion = 10 // Default: South America
+	}
+	gameMode := req.GameMode
+	if gameMode == 0 {
+		gameMode = 1 // Default: All Pick
+	}
+
+	log.Printf("Creating lobby with region=%d, mode=%d", serverRegion, gameMode)
+
+	// Create lobby options
+	opts := &bot.LobbyOptions{
+		Name:         req.Name,
+		Password:     req.Password,
+		ServerRegion: serverRegion,
+		GameMode:     gameMode,
+		AllowCheats:  req.AllowCheats,
+		AllowSpec:    req.AllowSpectators,
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	lobby, err := s.bot.CreateLobby(ctx, opts)
+	if err != nil {
+		log.Printf("Failed to create lobby: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	// Convert playerSteamIds (strings) to uint64 and merge with inviteSteamIds
+	var allInvites []uint64
+	allInvites = append(allInvites, req.InviteSteamIds...)
+	for _, sid := range req.PlayerSteamIds {
+		if steamId, err := strconv.ParseUint(sid, 10, 64); err == nil {
+			allInvites = append(allInvites, steamId)
+		} else {
+			log.Printf("Warning: failed to parse steam ID %s: %v", sid, err)
+		}
+	}
+
+	// Invite players if provided
+	if len(allInvites) > 0 {
+		if err := s.bot.InvitePlayersToLobby(ctx, allInvites); err != nil {
+			log.Printf("Warning: some invites may have failed: %v", err)
+		}
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":   true,
+		"lobby_id":  lobby.GetLobbyId(),
+		"password":  req.Password,
+	})
+}
+
+// InviteRequest represents the JSON body for inviting players
+type InviteRequest struct {
+	SteamIds []uint64 `json:"steam_ids"`
+}
+
+// handleInvitePlayers invites players to the current lobby
+func (s *Server) handleInvitePlayers(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Method not allowed"})
+		return
+	}
+
+	var req InviteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Invalid JSON: " + err.Error()})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	if err := s.bot.InvitePlayersToLobby(ctx, req.SteamIds); err != nil {
+		log.Printf("Failed to invite players: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+	})
+}
+
+// handleLaunchLobby starts the match
+func (s *Server) handleLaunchLobby(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Method not allowed"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+
+	if err := s.bot.LaunchLobby(ctx); err != nil {
+		log.Printf("Failed to launch lobby: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+	})
+}
+
+// handleDestroyLobby destroys the current lobby
+func (s *Server) handleDestroyLobby(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Method not allowed"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	if err := s.bot.LeaveLobby(ctx); err != nil {
+		log.Printf("Failed to destroy lobby: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+	})
 }

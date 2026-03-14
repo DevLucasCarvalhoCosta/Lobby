@@ -331,13 +331,13 @@ func convertLobbyStatus(state gcmm.CSODOTALobby_State) pb.LobbyStatus {
 	}
 }
 
-func convertMembers(members []*gcmm.CDOTALobbyMember) []*pb.LobbyMember {
+func convertMembers(members []*gcmm.CSODOTALobbyMember) []*pb.LobbyMember {
 	result := make([]*pb.LobbyMember, 0, len(members))
 	for _, m := range members {
 		result = append(result, &pb.LobbyMember{
 			SteamId:   m.GetId(),
 			AccountId: uint32(m.GetId() & 0xFFFFFFFF), // Extract account ID from Steam ID
-			Name:      m.GetName(),
+			Name:      "", // Name not available in current API
 			Team:      convertTeam(m.GetTeam()),
 			Slot:      uint32(m.GetSlot()),
 		})

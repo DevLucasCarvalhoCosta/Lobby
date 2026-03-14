@@ -47,11 +47,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = () => {
-    window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/auth/steam`;
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    window.location.href = `${apiUrl}/auth/steam`;
   };
 
   const logout = () => {
-    window.location.href = `${process.env.NEXT_PUBLIC_API_URL}/auth/logout`;
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+    window.location.href = `${apiUrl}/auth/logout`;
   };
 
   return (

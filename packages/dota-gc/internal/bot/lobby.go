@@ -6,8 +6,8 @@ import (
 	"log"
 	"time"
 
-	"github.com/paralin/go-dota2"
 	gcmm "github.com/paralin/go-dota2/protocol"
+	"github.com/paralin/go-steam/steamid"
 )
 
 // LobbyOptions contains options for creating a lobby
@@ -30,19 +30,16 @@ func (c *Client) CreateLobby(ctx context.Context, opts *LobbyOptions) (*gcmm.CSO
 
 	// Prepare lobby options
 	lobbyDetails := &gcmm.CMsgPracticeLobbySetDetails{
-		GameName:       &opts.Name,
-		PassKey:        &opts.Password,
-		ServerRegion:   &opts.ServerRegion,
-		GameMode:       &opts.GameMode,
-		AllowCheats:    &opts.AllowCheats,
+		GameName:        &opts.Name,
+		PassKey:         &opts.Password,
+		ServerRegion:    &opts.ServerRegion,
+		GameMode:        &opts.GameMode,
+		AllowCheats:     &opts.AllowCheats,
 		AllowSpectating: &opts.AllowSpec,
 	}
 
 	// Create the lobby
-	_, err := c.dota2Client.CreateLobby(ctx, lobbyDetails)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create lobby: %w", err)
-	}
+	c.dota2Client.CreateLobby(lobbyDetails)
 
 	// Wait for lobby to be created
 	lobby, err := c.waitForLobby(ctx, 15*time.Second)
@@ -72,7 +69,7 @@ func (c *Client) waitForLobby(ctx context.Context, timeout time.Duration) (*gcmm
 }
 
 // InviteToLobby invites a player to the current lobby
-func (c *Client) InviteToLobby(ctx context.Context, steamID uint64) error {
+func (c *Client) InviteToLobby(ctx context.Context, steamID64 uint64) error {
 	if !c.IsReady() {
 		return fmt.Errorf("bot is not ready")
 	}
@@ -82,11 +79,11 @@ func (c *Client) InviteToLobby(ctx context.Context, steamID uint64) error {
 		return fmt.Errorf("not in a lobby")
 	}
 
-	log.Printf("Inviting player %d to lobby", steamID)
+	log.Printf("Inviting player %d to lobby", steamID64)
 
 	// Convert to proper Steam ID format
-	steamID64 := dota2.SteamID(steamID)
-	c.dota2Client.InviteLobbyMember(steamID64)
+	sid := steamid.SteamId(steamID64)
+	c.dota2Client.InviteLobbyMember(sid)
 
 	return nil
 }
@@ -156,18 +153,15 @@ func (c *Client) ConfigureLobby(ctx context.Context, opts *LobbyOptions) error {
 	log.Printf("Configuring lobby: %s", opts.Name)
 
 	lobbyDetails := &gcmm.CMsgPracticeLobbySetDetails{
-		GameName:       &opts.Name,
-		PassKey:        &opts.Password,
-		ServerRegion:   &opts.ServerRegion,
-		GameMode:       &opts.GameMode,
-		AllowCheats:    &opts.AllowCheats,
+		GameName:        &opts.Name,
+		PassKey:         &opts.Password,
+		ServerRegion:    &opts.ServerRegion,
+		GameMode:        &opts.GameMode,
+		AllowCheats:     &opts.AllowCheats,
 		AllowSpectating: &opts.AllowSpec,
 	}
 
-	_, err := c.dota2Client.ConfigLobby(ctx, lobbyDetails)
-	if err != nil {
-		return fmt.Errorf("failed to configure lobby: %w", err)
-	}
+	c.dota2Client.SetLobbyDetails(lobbyDetails)
 
 	return nil
 }
@@ -226,13 +220,30 @@ func (c *Client) DestroyLobby(ctx context.Context) error {
 	return nil
 }
 
+// LobbyMemberInfo represents a simplified lobby member
+type LobbyMemberInfo struct {
+	AccountID uint64
+	Team      gcmm.DOTA_GC_TEAM
+	Slot      uint32
+}
+
 // GetLobbyMembers returns the list of members in the current lobby
-func (c *Client) GetLobbyMembers() []*gcmm.CDOTALobbyMember {
+func (c *Client) GetLobbyMembers() []LobbyMemberInfo {
 	lobby := c.GetCurrentLobby()
 	if lobby == nil {
 		return nil
 	}
-	return lobby.GetAllMembers()
+
+	members := lobby.GetAllMembers()
+	result := make([]LobbyMemberInfo, len(members))
+	for i, m := range members {
+		result[i] = LobbyMemberInfo{
+			AccountID: m.GetId(),
+			Team:      m.GetTeam(),
+			Slot:      m.GetSlot(),
+		}
+	}
+	return result
 }
 
 // IsLobbyReady checks if all expected players have joined the lobby
@@ -245,8 +256,7 @@ func (c *Client) IsLobbyReady(expectedPlayers int) bool {
 	// Count players in teams (not spectators, not unassigned)
 	playersInTeams := 0
 	for _, member := range members {
-		team := member.GetTeam()
-		if team == gcmm.DOTA_GC_TEAM_DOTA_GC_TEAM_GOOD_GUYS || team == gcmm.DOTA_GC_TEAM_DOTA_GC_TEAM_BAD_GUYS {
+		if member.Team == gcmm.DOTA_GC_TEAM_DOTA_GC_TEAM_GOOD_GUYS || member.Team == gcmm.DOTA_GC_TEAM_DOTA_GC_TEAM_BAD_GUYS {
 			playersInTeams++
 		}
 	}
@@ -255,6 +265,7 @@ func (c *Client) IsLobbyReady(expectedPlayers int) bool {
 }
 
 // ShuffleLobbyTeams performs a balanced shuffle of players
+// Note: This feature may not be available depending on the library version
 func (c *Client) ShuffleLobbyTeams(ctx context.Context) error {
 	if !c.IsReady() {
 		return fmt.Errorf("bot is not ready")
@@ -266,9 +277,8 @@ func (c *Client) ShuffleLobbyTeams(ctx context.Context) error {
 	}
 
 	log.Println("Shuffling lobby teams...")
-	c.dota2Client.BalancedShuffleLobby()
-
-	return nil
+	// Note: Shuffle may not be available - implement manually if needed
+	return fmt.Errorf("shuffle not implemented in current library version")
 }
 
 // FlipLobbyTeams swaps radiant and dire teams
