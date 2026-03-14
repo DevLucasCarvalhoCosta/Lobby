@@ -6,6 +6,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/paralin/go-dota2/cso"
 	gcmm "github.com/paralin/go-dota2/protocol"
 	"github.com/paralin/go-steam/steamid"
 )
@@ -20,7 +21,7 @@ type LobbyOptions struct {
 	AllowSpec    bool
 }
 
-// CreateLobby creates a new Dota 2 practice lobby
+// CreateLobby creates a new Dota 2 practice lobby using the correct LeaveCreateLobby method
 func (c *Client) CreateLobby(ctx context.Context, opts *LobbyOptions) (*gcmm.CSODOTALobby, error) {
 	if !c.IsReady() {
 		return nil, fmt.Errorf("bot is not ready")
@@ -28,7 +29,7 @@ func (c *Client) CreateLobby(ctx context.Context, opts *LobbyOptions) (*gcmm.CSO
 
 	log.Printf("Creating lobby: %s (region=%d, mode=%d)", opts.Name, opts.ServerRegion, opts.GameMode)
 
-	// Prepare lobby options
+	// Prepare lobby details
 	lobbyDetails := &gcmm.CMsgPracticeLobbySetDetails{
 		GameName:        &opts.Name,
 		PassKey:         &opts.Password,
@@ -38,34 +39,59 @@ func (c *Client) CreateLobby(ctx context.Context, opts *LobbyOptions) (*gcmm.CSO
 		AllowSpectating: &opts.AllowSpec,
 	}
 
-	// Create the lobby
-	c.dota2Client.CreateLobby(lobbyDetails)
+	log.Printf("DEBUG: Calling LeaveCreateLobby...")
 
-	// Wait for lobby to be created
-	lobby, err := c.waitForLobby(ctx, 15*time.Second)
+	// Use LeaveCreateLobby - the correct method that:
+	// 1. Leaves any existing lobby
+	// 2. Creates new lobby
+	// 3. Waits for SOCache to confirm lobby creation
+	// 4. Returns only after lobby is confirmed
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	err := c.dota2Client.LeaveCreateLobby(ctxWithTimeout, lobbyDetails, true)
 	if err != nil {
-		return nil, fmt.Errorf("lobby creation timeout: %w", err)
+		log.Printf("DEBUG: LeaveCreateLobby returned error: %v", err)
+		return nil, fmt.Errorf("failed to create lobby: %w", err)
 	}
 
-	log.Printf("Lobby created successfully: ID=%v", lobby.GetLobbyId())
+	log.Printf("DEBUG: LeaveCreateLobby returned successfully, getting lobby from cache...")
+
+	// Get lobby from cache after LeaveCreateLobby returns
+	lobby := c.getLobbyFromCache()
+	if lobby != nil {
+		log.Printf("Lobby created successfully: ID=%v, State=%v", lobby.GetLobbyId(), lobby.GetState())
+		
+		// Update internal state
+		c.mu.Lock()
+		c.currentLobby = lobby
+		c.mu.Unlock()
+	} else {
+		log.Printf("DEBUG: getLobbyFromCache returned nil")
+	}
+
 	return lobby, nil
 }
 
-// waitForLobby waits for a lobby update after creating a lobby
-func (c *Client) waitForLobby(ctx context.Context, timeout time.Duration) (*gcmm.CSODOTALobby, error) {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	for {
-		select {
-		case update := <-c.lobbyUpdateCh:
-			if update.Lobby != nil {
-				return update.Lobby, nil
-			}
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		}
+// getLobbyFromCache retrieves the current lobby from SOCache
+func (c *Client) getLobbyFromCache() *gcmm.CSODOTALobby {
+	cache := c.dota2Client.GetCache()
+	container, err := cache.GetContainerForTypeID(uint32(cso.Lobby))
+	if err != nil || container == nil {
+		return nil
 	}
+	
+	obj := container.GetOne()
+	if obj == nil {
+		return nil
+	}
+	
+	lobby, ok := obj.(*gcmm.CSODOTALobby)
+	if !ok {
+		return nil
+	}
+	
+	return lobby
 }
 
 // InviteToLobby invites a player to the current lobby
